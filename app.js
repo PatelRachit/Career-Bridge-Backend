@@ -12,6 +12,7 @@ import logger from './src/config/logger/index.js'
 import { ENVS, NODE_ENV } from './src/constant/index.js'
 import router from './src/routes/index.js'
 import { serverConnectionLog } from './src/utils/serverStartLog.js'
+import initMySQL from './src/config/mysql.js'
 
 const app = express()
 
@@ -100,6 +101,7 @@ const server = http.createServer(app)
 const AppServer = async () => {
   try {
     // connect sql
+    await initMySQL()
 
     server.listen(process.env.PORT || 3000, () => serverConnectionLog())
   } catch (err) {
