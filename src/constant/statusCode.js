@@ -1,0 +1,12 @@
+export const STATUS_CODE = {
+  //   Success
+  CREATED: 201,
+  SUCCESS: 200,
+
+  //   Error
+  BAD_REQUEST: 400,
+  NOT_FOUND: 404,
+  CONFLICT: 409,
+  UNAUTHORIZED: 401,
+  UNPROCESSABLE: 422,
+}
