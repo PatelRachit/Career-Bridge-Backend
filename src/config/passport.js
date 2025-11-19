@@ -1,16 +1,12 @@
 import passport from 'passport'
 import { Strategy as JwtStrategy } from 'passport-jwt'
-import { decrypt } from '../middleware/auth/dcrypt.js'
-import User from '../model/user.js'
+import Applicant from '../model/Applicant.js'
 
 const cookieExtractor = (req) => {
   let token = null
+  console.log('Cookies:', req.cookies.authToken) // Debugging line to check cookies
   if (req && req.cookies.authToken) {
     token = req.cookies.authToken
-  }
-  if (token) {
-    // Decrypts token
-    token = decrypt(token)
   }
   return token
 }
@@ -28,13 +24,14 @@ const jwtOptions = {
  */
 const jwtLogin = new JwtStrategy(jwtOptions, async (payload, done) => {
   try {
-    const user = await User.findById(payload.data._id)
+    console.log('JWT Payload:', payload) // Debugging line to check payload
+    const user = await Applicant.findByEmail(payload.data.email)
 
     if (!user) {
       return done(null, false)
     }
 
-    return done(null, user.toJSON())
+    return done(null, user)
   } catch (err) {
     return done(err, false)
   }

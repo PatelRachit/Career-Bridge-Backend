@@ -7,12 +7,11 @@ import helmet from 'helmet'
 import http from 'http'
 import morgan from 'morgan'
 import passport from 'passport'
-import xss from 'xss-clean'
 import logger from './src/config/logger/index.js'
 import { ENVS, NODE_ENV } from './src/constant/index.js'
 import router from './src/routes/index.js'
 import { serverConnectionLog } from './src/utils/serverStartLog.js'
-import initMySQL from './src/config/mysql.js'
+import { initMySQL } from './src/config/mysql.js'
 
 const app = express()
 
@@ -21,7 +20,7 @@ const app = express()
  */
 app.use(
   cors({
-    origin: ['http://localhost:5173'],
+    origin: ['http://localhost:3000'],
     credentials: true,
   }),
 )
@@ -76,13 +75,6 @@ app.use(cookieParser())
  * Middleware for compressing response bodies
  */
 app.use(compression())
-
-/**
- * -------------------------- XSS --------------------------
- *
- * Middleware for sanitizing user input from XSS attacks
- */
-app.use(xss())
 
 /**
  * -------------------------- HELMET --------------------------
