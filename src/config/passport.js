@@ -4,7 +4,6 @@ import Applicant from '../model/Applicant.js'
 
 const cookieExtractor = (req) => {
   let token = null
-  console.log('Cookies:', req.cookies.authToken) // Debugging line to check cookies
   if (req && req.cookies.authToken) {
     token = req.cookies.authToken
   }
@@ -24,7 +23,6 @@ const jwtOptions = {
  */
 const jwtLogin = new JwtStrategy(jwtOptions, async (payload, done) => {
   try {
-    console.log('JWT Payload:', payload) // Debugging line to check payload
     const user = await Applicant.findByEmail(payload.data.email)
 
     if (!user) {

@@ -6,7 +6,6 @@ import { setUserInfo } from './helpers/setUserInfo.js'
 
 const createUser = async (req, res) => {
   try {
-    console.log('Request Body:', req.body) // Debugging line to check request body
     const doesEmailExists = await Applicant.emailExists(req.body.email)
 
     if (!doesEmailExists) {

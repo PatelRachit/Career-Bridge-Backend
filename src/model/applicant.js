@@ -17,7 +17,6 @@ class Applicant {
       phone_number,
       email,
       password,
-      sex,
     } = applicantData
 
     // Hash password
@@ -25,8 +24,8 @@ class Applicant {
 
     const [result] = await pool.query(
       `INSERT INTO Applicant 
-       (first_name, last_name, date_of_birth, phone_number, email, password, sex)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+       (first_name, last_name, date_of_birth, phone_number, email, password)
+       VALUES (?, ?, ?, ?, ?, ?)`,
       [
         first_name,
         last_name,
@@ -34,7 +33,6 @@ class Applicant {
         phone_number,
         email,
         hashedPassword,
-        sex,
       ],
     )
 
@@ -45,7 +43,6 @@ class Applicant {
       date_of_birth,
       phone_number,
       email,
-      sex,
     }
   }
 
