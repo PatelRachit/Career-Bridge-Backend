@@ -5,7 +5,6 @@ import { buildErrObject, handleError } from '../../utils/index.js'
 const getJob = async (req, res) => {
   try {
     const { id } = req.params
-    console.log(id)
     const job = await Job.findById(id)
 
     if (!job) {

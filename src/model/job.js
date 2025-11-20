@@ -49,15 +49,7 @@ class Job {
 
   // Get all jobs with company info and skills (for listing page)
   static async findAll(filters = {}, limit = 10, offset = 0) {
-    const {
-      Position_Type,
-      Class_Level,
-      Workplace_Type,
-      search,
-      company_id,
-      min_compensation,
-      max_compensation,
-    } = filters
+    const { Position_Type, Workplace_Type, search, location } = filters
 
     let query = `
       SELECT 
@@ -92,9 +84,9 @@ class Job {
       params.push(Position_Type)
     }
 
-    if (Class_Level) {
-      query += ' AND j.Class_Level = ?'
-      params.push(Class_Level)
+    if (location) {
+      query += ' AND a.state = ?'
+      params.push(location)
     }
 
     if (Workplace_Type) {
@@ -105,21 +97,6 @@ class Job {
     if (search) {
       query += ' AND (j.title LIKE ? OR c.name LIKE ?)'
       params.push(`%${search}%`, `%${search}%`)
-    }
-
-    if (company_id) {
-      query += ' AND j.company_id = ?'
-      params.push(company_id)
-    }
-
-    if (min_compensation) {
-      query += ' AND j.compensation >= ?'
-      params.push(min_compensation)
-    }
-
-    if (max_compensation) {
-      query += ' AND j.compensation <= ?'
-      params.push(max_compensation)
     }
 
     query += `
@@ -143,20 +120,13 @@ class Job {
 
   // Get total count for pagination
   static async getCount(filters = {}) {
-    const {
-      Position_Type,
-      Class_Level,
-      Workplace_Type,
-      search,
-      company_id,
-      min_compensation,
-      max_compensation,
-    } = filters
+    const { Position_Type, location, Workplace_Type, search } = filters
 
     let query = `
       SELECT COUNT(DISTINCT j.job_id) as total
       FROM Job j
       INNER JOIN Company c ON j.company_id = c.company_id
+      INNER JOIN address a on j.address_id = a.address_id
       WHERE 1=1
     `
 
@@ -167,9 +137,9 @@ class Job {
       params.push(Position_Type)
     }
 
-    if (Class_Level) {
-      query += ' AND j.Class_Level = ?'
-      params.push(Class_Level)
+    if (location) {
+      query += ' AND a.state = ?'
+      params.push(location)
     }
 
     if (Workplace_Type) {
@@ -180,21 +150,6 @@ class Job {
     if (search) {
       query += ' AND (j.title LIKE ? OR c.name LIKE ?)'
       params.push(`%${search}%`, `%${search}%`)
-    }
-
-    if (company_id) {
-      query += ' AND j.company_id = ?'
-      params.push(company_id)
-    }
-
-    if (min_compensation) {
-      query += ' AND j.compensation >= ?'
-      params.push(min_compensation)
-    }
-
-    if (max_compensation) {
-      query += ' AND j.compensation <= ?'
-      params.push(max_compensation)
     }
 
     const [rows] = await pool.query(query, params)

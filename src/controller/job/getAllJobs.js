@@ -4,13 +4,26 @@ import Job from '../../model/Job.js'
 
 const getAllJobs = async (req, res) => {
   try {
-    const { page = 1, limit = 10 } = req.query
+    const {
+      page = 1,
+      limit = 4,
+      Position_Type,
+      Workplace_Type,
+      search,
+      location,
+    } = req.query
 
     const offset = (parseInt(page) - 1) * parseInt(limit)
 
+    const filters = { Position_Type, Workplace_Type, search, location }
+
+    Object.keys(filters).forEach(
+      (key) => filters[key] === undefined && delete filters[key],
+    )
+
     const [jobs, total] = await Promise.all([
-      Job.findAll({}, parseInt(limit), offset),
-      Job.getCount({}),
+      Job.findAll(filters, parseInt(limit), offset),
+      Job.getCount(filters),
     ])
 
     const totalPages = Math.ceil(total / parseInt(limit))
