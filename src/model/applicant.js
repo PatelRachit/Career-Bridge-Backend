@@ -55,11 +55,44 @@ class Applicant {
   }
 
   static async findById(applicantId) {
-    const [rows] = await pool.query(
-      'SELECT * FROM Applicant WHERE applicant_id = ? LIMIT 1',
+    const [applicantRows] = await pool.query(
+      `SELECT * FROM Applicant WHERE applicant_id = ? LIMIT 1`,
       [applicantId],
     )
-    return rows[0] || null
+
+    if (applicantRows.length === 0) {
+      return null
+    }
+
+    const applicant = applicantRows[0]
+
+    // Get all experience records
+    const [experienceRows] = await pool.query(
+      `SELECT * FROM Experience WHERE applicant_id = ? ORDER BY start_date DESC`,
+      [applicantId],
+    )
+
+    // Get all education records
+    const [educationRows] = await pool.query(
+      `SELECT * FROM Education WHERE applicant_id = ? ORDER BY start_date DESC`,
+      [applicantId],
+    )
+
+    // Get all skills
+    const [skillRows] = await pool.query(
+      `SELECT s.* FROM Skills s
+     INNER JOIN Applicant_Skills as2 ON s.Skill_ID = as2.Skill_ID
+     WHERE as2.applicant_id = ?`,
+      [applicantId],
+    )
+
+    // Combine all data
+    return {
+      ...applicant,
+      experience: experienceRows || [],
+      education: educationRows || [],
+      skills: skillRows.map((skill) => skill.name) || [],
+    }
   }
 
   static async emailExists(email) {
