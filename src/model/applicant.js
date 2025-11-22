@@ -114,57 +114,124 @@ class Applicant {
     }
   }
 
-  static async update(applicantId, updates) {
-    const allowedFields = [
-      'first_name',
-      'last_name',
-      'date_of_birth',
-      'phone_number',
-      'email',
-      'sex',
-      'resume_link',
-    ]
-
-    const fields = []
-    const values = []
-
-    const fieldMap = {
-      firstName: 'first_name',
-      lastName: 'last_name',
-      dateOfBirth: 'date_of_birth',
-      phoneNumber: 'phone_number',
-      resumeLink: 'resume_link',
+  // Update basic applicant info
+  static async updateBasicInfo(connection, applicantId, updates) {
+    if (Object.keys(updates).length === 0) {
+      return true
     }
 
-    // Handle password update separately (needs hashing)
-    if (updates.password) {
-      const hashedPassword = await bcrypt.hash(updates.password, SALT_ROUNDS)
-      fields.push('password = ?')
-      values.push(hashedPassword)
-    }
+    const fields = Object.keys(updates)
+      .map((key) => `${key} = ?`)
+      .join(', ')
+    const values = Object.values(updates)
 
-    Object.keys(updates).forEach((key) => {
-      const dbField = fieldMap[key] || key
-      if (allowedFields.includes(dbField) && key !== 'password') {
-        fields.push(`${dbField} = ?`)
-        values.push(updates[key])
-      }
-    })
-
-    if (fields.length === 0) {
-      throw new Error('No valid fields to update')
-    }
-
-    values.push(applicantId)
-
-    const [result] = await pool.query(
-      `UPDATE Applicant SET ${fields.join(', ')} WHERE applicant_id = ?`,
-      values,
+    const [result] = await connection.query(
+      `UPDATE Applicant SET ${fields} WHERE applicant_id = ?`,
+      [...values, applicantId],
     )
 
     return result.affectedRows > 0
   }
 
+  // Skills Management
+  static async deleteAllSkills(connection, applicantId) {
+    await connection.query(
+      `DELETE FROM Applicant_Skills WHERE applicant_id = ?`,
+      [applicantId],
+    )
+  }
+
+  static async findOrCreateSkill(connection, skillName) {
+    let [skillRows] = await connection.query(
+      `SELECT Skill_ID FROM Skills WHERE name = ?`,
+      [skillName],
+    )
+
+    if (skillRows.length === 0) {
+      const [result] = await connection.query(
+        `INSERT INTO Skills (name) VALUES (?)`,
+        [skillName],
+      )
+      return result.insertId
+    }
+
+    return skillRows[0].Skill_ID
+  }
+
+  static async addSkillToApplicant(connection, applicantId, skillId) {
+    await connection.query(
+      `INSERT INTO Applicant_Skills (applicant_id, Skill_ID) VALUES (?, ?)`,
+      [applicantId, skillId],
+    )
+  }
+
+  // Experience - Insert or Update
+  static async deleteAllExperience(connection, applicantId) {
+    await connection.query(`DELETE FROM Experience WHERE applicant_id = ?`, [
+      applicantId,
+    ])
+  }
+
+  static async createExperience(connection, applicantId, experienceData) {
+    const {
+      company,
+      designation,
+      current,
+      role_description,
+      start_date,
+      end_date,
+    } = experienceData
+
+    await connection.query(
+      `INSERT INTO Experience 
+    (applicant_id, company, designation, current, role_description, start_date, end_date) 
+    VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [
+        applicantId,
+        company,
+        designation,
+        current || false,
+        role_description || null,
+        start_date || null,
+        current ? null : end_date || null,
+      ],
+    )
+  }
+
+  // Education Management - Replace All
+  static async deleteAllEducation(connection, applicantId) {
+    await connection.query(`DELETE FROM Education WHERE applicant_id = ?`, [
+      applicantId,
+    ])
+  }
+
+  static async createEducation(connection, applicantId, educationData) {
+    const {
+      school,
+      degree,
+      gpa,
+      field_of_study,
+      start_date,
+      end_date,
+      list_item,
+    } = educationData
+
+    await connection.query(
+      `INSERT INTO Education 
+    (applicant_id, school, degree, gpa, field_of_study, start_date, end_date, list_item) 
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        applicantId,
+        school,
+        degree,
+        gpa || null,
+        field_of_study || null,
+        start_date || null,
+        end_date || null,
+        list_item || null,
+      ],
+    )
+  }
   // Delete applicant
   static async delete(applicantId) {
     const [result] = await pool.query(
