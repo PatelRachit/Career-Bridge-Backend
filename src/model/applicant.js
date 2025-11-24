@@ -51,9 +51,28 @@ class Applicant {
       'SELECT * FROM Applicant WHERE email = ? LIMIT 1',
       [email],
     )
-    return rows[0] || null
-  }
 
+    if (rows.length === 0) {
+      return null
+    }
+
+    const applicant = rows[0]
+
+    // Get all skills for this applicant
+    const [skillRows] = await pool.query(
+      `SELECT s.Skill_ID, s.name 
+    FROM Skills s
+    INNER JOIN Applicant_Skills aps ON s.Skill_ID = aps.Skill_ID
+    WHERE aps.applicant_id = ?`,
+      [applicant.applicant_id],
+    )
+
+    // Return applicant with skills
+    return {
+      ...applicant,
+      skills: skillRows.map((skill) => skill.name) || [],
+    }
+  }
   static async findById(applicantId) {
     const [applicantRows] = await pool.query(
       `SELECT * FROM Applicant WHERE applicant_id = ? LIMIT 1`,
