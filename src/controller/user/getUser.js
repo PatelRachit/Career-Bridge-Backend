@@ -4,8 +4,9 @@ import Applicant from '../../model/Applicant.js'
 
 const getUser = async (req, res) => {
   try {
-    const { applicant_id } = req.user
-    const item = await Applicant.findById(applicant_id)
+    const { User_ID } = req.user
+    const item = await Applicant.findById(User_ID)
+    console.log(item)
     res.status(STATUS_CODE.SUCCESS).json(item)
   } catch (error) {
     handleError(res, error)

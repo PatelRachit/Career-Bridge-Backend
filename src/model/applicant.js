@@ -23,7 +23,7 @@ class Applicant {
     const hashedPassword = await bcrypt.hash(password, SALT_ROUNDS)
 
     const [result] = await pool.query(
-      `INSERT INTO Applicant 
+      `INSERT INTO User 
        (first_name, last_name, date_of_birth, phone_number, email, password)
        VALUES (?, ?, ?, ?, ?, ?)`,
       [
@@ -48,7 +48,7 @@ class Applicant {
 
   static async findByEmail(email) {
     const [rows] = await pool.query(
-      'SELECT * FROM Applicant WHERE email = ? LIMIT 1',
+      'SELECT * FROM User WHERE email = ? LIMIT 1',
       [email],
     )
 
@@ -70,12 +70,12 @@ class Applicant {
     // Return applicant with skills
     return {
       ...applicant,
-      skills: skillRows.map((skill) => skill.name) || [],
+      skills: skillRows?.map((skill) => skill.name) || [],
     }
   }
   static async findById(applicantId) {
     const [applicantRows] = await pool.query(
-      `SELECT * FROM Applicant WHERE applicant_id = ? LIMIT 1`,
+      `SELECT * FROM User WHERE User_ID = ? LIMIT 1`,
       [applicantId],
     )
 
@@ -117,7 +117,7 @@ class Applicant {
   static async emailExists(email) {
     try {
       const [rows] = await pool.query(
-        'SELECT applicant_id FROM Applicant WHERE email = ? LIMIT 1',
+        'SELECT User_id FROM User WHERE email = ? LIMIT 1',
         [email],
       )
 
