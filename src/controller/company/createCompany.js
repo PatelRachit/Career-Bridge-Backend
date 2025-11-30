@@ -1,5 +1,5 @@
 import { STATUS_CODE } from '../../constant/index.js'
-import Company from '../../model/company.js'
+import Company from '../../model/recruiter.js'
 import { handleError } from '../../utils/index.js'
 
 export const createCompany = async (req, res) => {

@@ -7,37 +7,32 @@ class Job {
     const {
       company_id,
       title,
-      about_role,
-      responsibilities,
+      job_responsibilities,
       requirements,
-      required_skills,
       benefits,
-      compensation,
+      salary_range,
       application_deadline,
-      Position_Type,
-      Class_Level,
-      Workplace_Type,
+      position_type,
+      class_level,
+      workplace_type,
     } = jobData
 
     const [result] = await pool.query(
-      `INSERT INTO Job 
-       (company_id, title, about_role, responsibilities, requirements, 
-        required_skills, benefits, compensation, application_deadline, 
-        Position_Type, Class_Level, Workplace_Type)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO job
+       (company_id, title, job_responsibilities, requirements, benefits,
+        salary_range, application_deadline, position_type, class_level, workplace_type)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         company_id,
         title,
-        about_role,
-        responsibilities,
+        job_responsibilities,
         requirements,
-        required_skills,
         benefits,
-        compensation,
+        salary_range,
         application_deadline,
-        Position_Type,
-        Class_Level,
-        Workplace_Type,
+        position_type,
+        class_level,
+        workplace_type,
       ],
     )
 
@@ -47,51 +42,52 @@ class Job {
     }
   }
 
-  // Get all jobs with company info and skills (for listing page)
+  // Get all jobs with company info and skills
   static async findAll(filters = {}, limit = 10, offset = 0) {
-    const { Position_Type, Workplace_Type, search, location } = filters
+    const { position_type, workplace_type, search, location } = filters
 
     let query = `
       SELECT 
         j.job_id,
-        j.title,
-        j.compensation,
-        j.posted_date,
-        j.application_deadline,
-        j.Position_Type,
-        j.Class_Level,
-        j.Workplace_Type,
         j.about_role,
+        j.title,
+        j.salary_range,
+        j.created_at,
+        j.application_deadline,
+        j.position_type,
+        j.class_level,
+        j.workplace_type,
+        j.job_responsibilities,
         a.state,
+        a.city,
         c.company_id,
         c.name as company_name,
         c.industry,
-        GROUP_CONCAT(DISTINCT s.name) as skills,
-        DATEDIFF(NOW(), j.posted_date) as days_ago
-      FROM Job j
-      INNER JOIN Company c ON j.company_id = c.company_id
-      INNER JOIN address a on j.address_id = a.address_id
-      LEFT JOIN Job_Skills js ON j.job_id = js.job_id
-      LEFT JOIN Skills s ON js.Skill_ID = s.Skill_ID
+        GROUP_CONCAT(DISTINCT js.skill_name) as skills,
+        DATEDIFF(NOW(), j.created_at) as days_ago
+      FROM job j
+      INNER JOIN company c ON j.company_id = c.company_id
+      LEFT JOIN company_address ca ON c.company_id = ca.company_id
+      LEFT JOIN address a ON ca.address_id = a.address_id
+      LEFT JOIN job_skills js ON j.job_id = js.job_id
       WHERE 1=1
     `
 
     const params = []
 
-    // Apply filters
-    if (Position_Type) {
-      query += ' AND j.Position_Type = ?'
-      params.push(Position_Type)
+    if (position_type) {
+      query += ' AND j.position_type = ?'
+      params.push(position_type)
+    }
+
+    if (workplace_type) {
+      query += ' AND j.workplace_type = ?'
+      params.push(workplace_type)
     }
 
     if (location) {
       query += ' AND a.state = ?'
       params.push(location)
-    }
-
-    if (Workplace_Type) {
-      query += ' AND j.Workplace_Type = ?'
-      params.push(Workplace_Type)
     }
 
     if (search) {
@@ -100,10 +96,11 @@ class Job {
     }
 
     query += `
-      GROUP BY j.job_id, j.title, j.compensation, j.posted_date, 
-               j.application_deadline, j.Position_Type, j.Class_Level, 
-               j.Workplace_Type, j.about_role, c.company_id, c.name, c.industry , a.state
-      ORDER BY j.posted_date DESC
+      GROUP BY j.job_id, j.title, j.salary_range, j.created_at,
+               j.application_deadline, j.position_type, j.class_level,
+               j.workplace_type, j.job_responsibilities,
+               c.company_id, c.name, c.industry, a.state , a.city
+      ORDER BY j.created_at DESC
       LIMIT ? OFFSET ?
     `
 
@@ -111,7 +108,6 @@ class Job {
 
     const [rows] = await pool.query(query, params)
 
-    // Transform skills string to array
     return rows.map((row) => ({
       ...row,
       skills: row.skills ? row.skills.split(',') : [],
@@ -120,31 +116,32 @@ class Job {
 
   // Get total count for pagination
   static async getCount(filters = {}) {
-    const { Position_Type, location, Workplace_Type, search } = filters
+    const { position_type, workplace_type, search, location } = filters
 
     let query = `
       SELECT COUNT(DISTINCT j.job_id) as total
-      FROM Job j
-      INNER JOIN Company c ON j.company_id = c.company_id
-      INNER JOIN address a on j.address_id = a.address_id
+      FROM job j
+      INNER JOIN company c ON j.company_id = c.company_id
+      LEFT JOIN company_address ca ON c.company_id = ca.company_id
+      LEFT JOIN address a ON ca.address_id = a.address_id
       WHERE 1=1
     `
 
     const params = []
 
-    if (Position_Type) {
-      query += ' AND j.Position_Type = ?'
-      params.push(Position_Type)
+    if (position_type) {
+      query += ' AND j.position_type = ?'
+      params.push(position_type)
+    }
+
+    if (workplace_type) {
+      query += ' AND j.workplace_type = ?'
+      params.push(workplace_type)
     }
 
     if (location) {
       query += ' AND a.state = ?'
       params.push(location)
-    }
-
-    if (Workplace_Type) {
-      query += ' AND j.Workplace_Type = ?'
-      params.push(Workplace_Type)
     }
 
     if (search) {
@@ -159,37 +156,33 @@ class Job {
   // Get job by ID with full details
   static async findById(job_id) {
     const query = `
-      SELECT 
-        j.*,
-        c.company_id,
-        c.name as company_name,
-        c.overview as company_overview,
-        c.industry,
-        c.company_size,
-        a.state,
-        GROUP_CONCAT(DISTINCT s.name) as skills,
-        GROUP_CONCAT(DISTINCT s.Skill_ID) as skill_ids,
-        DATEDIFF(NOW(), j.posted_date) as days_ago
-      FROM Job j
-      INNER JOIN Company c ON j.company_id = c.company_id
-      INNER JOIN address a on j.address_id = a.address_id
-      LEFT JOIN Job_Skills js ON j.job_id = js.job_id
-      LEFT JOIN Skills s ON js.Skill_ID = s.Skill_ID
-      WHERE j.job_id = ?
-      GROUP BY j.job_id
-    `
+    SELECT 
+      j.*,
+      c.company_id,
+      c.name AS company_name,
+      c.overview AS company_overview,
+      c.industry,
+      c.company_size,
+      a.state ,
+      a.city,
+      GROUP_CONCAT(DISTINCT js.skill_name) AS skills,
+      DATEDIFF(NOW(), j.created_at) AS days_ago
+    FROM job j
+    INNER JOIN company c ON j.company_id = c.company_id
+    LEFT JOIN company_address ca ON c.company_id = ca.company_id
+    LEFT JOIN address a ON ca.address_id = a.address_id
+    LEFT JOIN job_skills js ON j.job_id = js.job_id
+    WHERE j.job_id = ?
+    GROUP BY j.job_id , a.state,a.city
+  `
 
     const [rows] = await pool.query(query, [job_id])
-
-    if (rows.length === 0) {
-      return null
-    }
+    if (rows.length === 0) return null
 
     const job = rows[0]
     return {
       ...job,
       skills: job.skills ? job.skills.split(',') : [],
-      skill_ids: job.skill_ids ? job.skill_ids.split(',').map(Number) : [],
     }
   }
 
@@ -197,16 +190,14 @@ class Job {
   static async update(job_id, updates) {
     const allowedFields = [
       'title',
-      'about_role',
-      'responsibilities',
+      'job_responsibilities',
       'requirements',
-      'required_skills',
       'benefits',
-      'compensation',
+      'salary_range',
       'application_deadline',
-      'Position_Type',
-      'Class_Level',
-      'Workplace_Type',
+      'position_type',
+      'class_level',
+      'workplace_type',
     ]
 
     const fields = []
@@ -219,14 +210,12 @@ class Job {
       }
     })
 
-    if (fields.length === 0) {
-      throw new Error('No valid fields to update')
-    }
+    if (fields.length === 0) throw new Error('No valid fields to update')
 
     values.push(job_id)
 
     const [result] = await pool.query(
-      `UPDATE Job SET ${fields.join(', ')} WHERE job_id = ?`,
+      `UPDATE job SET ${fields.join(', ')} WHERE job_id = ?`,
       values,
     )
 
@@ -235,7 +224,7 @@ class Job {
 
   // Delete job
   static async delete(job_id) {
-    const [result] = await pool.query('DELETE FROM Job WHERE job_id = ?', [
+    const [result] = await pool.query('DELETE FROM job WHERE job_id = ?', [
       job_id,
     ])
     return result.affectedRows > 0
@@ -247,19 +236,16 @@ class Job {
       SELECT 
         j.*,
         c.name as company_name,
-        GROUP_CONCAT(DISTINCT s.name) as skills
-      FROM Job j
-      INNER JOIN Company c ON j.company_id = c.company_id
-      LEFT JOIN Job_Skills js ON j.job_id = js.job_id
-      LEFT JOIN Skills s ON js.Skill_ID = s.Skill_ID
+        GROUP_CONCAT(DISTINCT js.skill_name) as skills
+      FROM job j
+      INNER JOIN company c ON j.company_id = c.company_id
+      LEFT JOIN job_skills js ON j.job_id = js.job_id
       WHERE j.company_id = ?
       GROUP BY j.job_id
-      ORDER BY j.posted_date DESC
+      ORDER BY j.created_at DESC
       LIMIT ? OFFSET ?
     `
-
     const [rows] = await pool.query(query, [company_id, limit, offset])
-
     return rows.map((row) => ({
       ...row,
       skills: row.skills ? row.skills.split(',') : [],
@@ -272,28 +258,25 @@ class Job {
       SELECT 
         j.job_id,
         j.title,
-        j.compensation,
-        j.Position_Type,
-        j.Workplace_Type,
+        j.salary_range,
+        j.position_type,
+        j.workplace_type,
         c.name as company_name,
         c.industry,
-        GROUP_CONCAT(DISTINCT s.name) as skills
-      FROM Job j
-      INNER JOIN Company c ON j.company_id = c.company_id
-      LEFT JOIN Job_Skills js ON j.job_id = js.job_id
-      LEFT JOIN Skills s ON js.Skill_ID = s.Skill_ID
-      WHERE j.title LIKE ? OR c.name LIKE ? OR s.name LIKE ?
+        GROUP_CONCAT(DISTINCT js.skill_name) as skills
+      FROM job j
+      INNER JOIN company c ON j.company_id = c.company_id
+      LEFT JOIN job_skills js ON j.job_id = js.job_id
+      WHERE j.title LIKE ? OR c.name LIKE ? OR js.skill_name LIKE ?
       GROUP BY j.job_id
       LIMIT ?
     `
-
     const [rows] = await pool.query(query, [
       `%${searchTerm}%`,
       `%${searchTerm}%`,
       `%${searchTerm}%`,
       limit,
     ])
-
     return rows.map((row) => ({
       ...row,
       skills: row.skills ? row.skills.split(',') : [],
@@ -301,11 +284,11 @@ class Job {
   }
 
   // Add skill to job
-  static async addSkill(job_id, skill_id) {
+  static async addSkill(job_id, skill_name) {
     try {
       await pool.query(
-        'INSERT INTO Job_Skills (job_id, Skill_ID) VALUES (?, ?)',
-        [job_id, skill_id],
+        'INSERT INTO job_skills (job_id, skill_name) VALUES (?, ?)',
+        [job_id, skill_name],
       )
       return true
     } catch (error) {
@@ -317,10 +300,10 @@ class Job {
   }
 
   // Remove skill from job
-  static async removeSkill(job_id, skill_id) {
+  static async removeSkill(job_id, skill_name) {
     const [result] = await pool.query(
-      'DELETE FROM Job_Skills WHERE job_id = ? AND Skill_ID = ?',
-      [job_id, skill_id],
+      'DELETE FROM job_skills WHERE job_id = ? AND skill_name = ?',
+      [job_id, skill_name],
     )
     return result.affectedRows > 0
   }
@@ -331,19 +314,16 @@ class Job {
       SELECT 
         j.*,
         c.name as company_name,
-        GROUP_CONCAT(DISTINCT s.name) as skills
-      FROM Job j
-      INNER JOIN Company c ON j.company_id = c.company_id
-      LEFT JOIN Job_Skills js ON j.job_id = js.job_id
-      LEFT JOIN Skills s ON js.Skill_ID = s.Skill_ID
+        GROUP_CONCAT(DISTINCT js.skill_name) as skills
+      FROM job j
+      INNER JOIN company c ON j.company_id = c.company_id
+      LEFT JOIN job_skills js ON j.job_id = js.job_id
       WHERE j.application_deadline >= CURDATE() OR j.application_deadline IS NULL
       GROUP BY j.job_id
-      ORDER BY j.posted_date DESC
+      ORDER BY j.created_at DESC
       LIMIT ? OFFSET ?
     `
-
     const [rows] = await pool.query(query, [limit, offset])
-
     return rows.map((row) => ({
       ...row,
       skills: row.skills ? row.skills.split(',') : [],

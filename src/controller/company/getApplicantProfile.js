@@ -2,15 +2,12 @@ import { STATUS_CODE } from '../../constant/statusCode.js'
 import { handleError } from '../../utils/handleError.js'
 import Applicant from '../../model/Applicant.js'
 
-const getUser = async (req, res) => {
+export const getApplicantProfile = async (req, res) => {
   try {
-    const { user_id } = req.user
-    const item = await Applicant.findById(user_id)
-    console.log(item)
+    const { id } = req.params
+    const item = await Applicant.findById(id)
     res.status(STATUS_CODE.SUCCESS).json(item)
   } catch (error) {
     handleError(res, error)
   }
 }
-
-export { getUser }

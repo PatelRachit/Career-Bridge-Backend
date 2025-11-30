@@ -3,14 +3,14 @@ import { buildErrObject } from '../utils/buildErrObject.js'
 
 class Application {
   // Apply for a job
-  static async applyForJob(applicantId, jobId) {
+  static async applyForJob(user_id, job_id) {
     try {
       // Check if already applied
       const [existing] = await pool.query(
-        `SELECT application_id FROM Application 
-         WHERE applicant_id = ? AND job_id = ? 
+        `SELECT application_id FROM application 
+         WHERE user_id = ? AND job_id = ? 
          LIMIT 1`,
-        [applicantId, jobId],
+        [user_id, job_id],
       )
 
       if (existing.length > 0) {
@@ -19,40 +19,38 @@ class Application {
 
       // Create application
       const [result] = await pool.query(
-        `INSERT INTO Application 
-         (applicant_id, job_id, status, applied_date)
-         VALUES (?, ?, 'Applied', NOW())`,
-        [applicantId, jobId],
+        `INSERT INTO application 
+         (user_id, job_id, status, applied_date)
+         VALUES (?, ?, 'pending', NOW())`,
+        [user_id, job_id],
       )
 
       return {
-        applicationId: result.insertId,
-        applicantId,
-        jobId,
-        status: 'Applied',
-        appliedDate: new Date(),
+        application_id: result.insertId,
+        user_id,
+        job_id,
+        status: 'pending',
+        applied_date: new Date(),
       }
     } catch (error) {
-      if (error.code && error.message) {
-        throw error
-      }
+      if (error.code && error.message) throw error
       throw buildErrObject(500, error.message)
     }
   }
 
   // Check if already applied
-  static async hasApplied(applicantId, jobId) {
+  static async hasApplied(user_id, job_id) {
     const [rows] = await pool.query(
-      `SELECT application_id FROM Application 
-       WHERE applicant_id = ? AND job_id = ? 
+      `SELECT application_id FROM application 
+       WHERE user_id = ? AND job_id = ? 
        LIMIT 1`,
-      [applicantId, jobId],
+      [user_id, job_id],
     )
     return rows.length > 0
   }
 
-  // Get all applications for an applicant
-  static async getApplicantApplications(applicantId, status = null) {
+  // Get all applications for a user
+  static async getUserApplications(user_id, status = null) {
     let query = `
       SELECT 
         a.application_id,
@@ -60,25 +58,25 @@ class Application {
         a.applied_date,
         j.job_id,
         j.title as job_title,
-        j.Position_Type,
-        j.Workplace_Type,
-        j.compensation,
+        j.position_type,
+        j.workplace_type,
+        j.salary_range,
         j.application_deadline,
-        c.name,
+        c.name as company_name,
         c.industry,
         addr.state,
         addr.city
-      FROM Application a
-      INNER JOIN Job j ON a.job_id = j.job_id
-      INNER JOIN Company c ON j.company_id = c.company_id
-      LEFT JOIN Address addr ON j.address_id = addr.address_id
-      WHERE a.applicant_id = ?
+      FROM application a
+      INNER JOIN job j ON a.job_id = j.job_id
+      INNER JOIN company c ON j.company_id = c.company_id
+      LEFT JOIN company_address ca ON c.company_id = ca.company_id
+      LEFT JOIN address addr ON ca.address_id = addr.address_id
+      WHERE a.user_id = ?
     `
-
-    const params = [applicantId]
+    const params = [user_id]
 
     if (status) {
-      query += ' AND a.application_status = ?'
+      query += ' AND a.status = ?'
       params.push(status)
     }
 
@@ -89,62 +87,62 @@ class Application {
   }
 
   // Get application by ID
-  static async getApplicationById(applicationId) {
+  static async getApplicationById(application_id) {
     const [rows] = await pool.query(
       `SELECT 
         a.*,
         j.title as job_title,
-        j.about_role,
-        j.Position_Type,
-        j.Workplace_Type,
-        j.compensation,
-        c.company_name,
-        c.company_overview,
+        j.job_responsibilities,
+        j.position_type,
+        j.workplace_type,
+        j.salary_range,
+        c.name as company_name,
+        c.overview as company_overview,
         addr.state,
         addr.city
-      FROM Application a
-      INNER JOIN Job j ON a.job_id = j.job_id
-      INNER JOIN Company c ON j.company_id = c.company_id
-      LEFT JOIN Address addr ON j.address_id = addr.address_id
+      FROM application a
+      INNER JOIN job j ON a.job_id = j.job_id
+      INNER JOIN company c ON j.company_id = c.company_id
+      LEFT JOIN company_address ca ON c.company_id = ca.company_id
+      LEFT JOIN address addr ON ca.address_id = addr.address_id
       WHERE a.application_id = ?
       LIMIT 1`,
-      [applicationId],
+      [application_id],
     )
     return rows[0] || null
   }
 
   // Update application status
-  static async updateStatus(applicationId, newStatus) {
+  static async updateStatus(application_id, newStatus) {
     const validStatuses = [
-      'Applied',
-      'Under Review',
-      'Interview',
-      'Offer',
-      'Rejected',
-      'Withdrawn',
+      'pending',
+      'under review',
+      'interview',
+      'offer',
+      'rejected',
+      'withdrawn',
     ]
 
-    if (!validStatuses.includes(newStatus)) {
+    if (!validStatuses.includes(newStatus.toLowerCase())) {
       throw buildErrObject(400, 'Invalid application status')
     }
 
     const [result] = await pool.query(
-      `UPDATE Application 
-       SET application_status = ?, updated_at = NOW()
+      `UPDATE application 
+       SET status = ?, applied_date = NOW()
        WHERE application_id = ?`,
-      [newStatus, applicationId],
+      [newStatus, application_id],
     )
 
     return result.affectedRows > 0
   }
 
   // Withdraw application
-  static async withdrawApplication(applicationId, applicantId) {
+  static async withdrawApplication(application_id, user_id) {
     const [result] = await pool.query(
-      `UPDATE Application 
-       SET status = 'Withdrawn'
-       WHERE application_id = ? AND applicant_id = ?`,
-      [applicationId, applicantId],
+      `DELETE FROM application 
+     WHERE application_id = ? AND user_id = ?`,
+      [application_id, user_id],
     )
 
     if (result.affectedRows === 0) {
@@ -155,11 +153,11 @@ class Application {
   }
 
   // Delete application
-  static async deleteApplication(applicationId, applicantId) {
+  static async deleteApplication(application_id, user_id) {
     const [result] = await pool.query(
-      `DELETE FROM Application 
-       WHERE application_id = ? AND applicant_id = ?`,
-      [applicationId, applicantId],
+      `DELETE FROM application 
+       WHERE application_id = ? AND user_id = ?`,
+      [application_id, user_id],
     )
 
     if (result.affectedRows === 0) {
@@ -169,33 +167,32 @@ class Application {
     return true
   }
 
-  // Get application statistics for applicant
-  static async getApplicantStats(applicantId) {
+  // Get application statistics for user
+  static async getUserStats(user_id) {
     const [stats] = await pool.query(
       `SELECT 
         COUNT(*) as total_applications,
-        SUM(CASE WHEN application_status = 'Applied' THEN 1 ELSE 0 END) as applied,
-        SUM(CASE WHEN application_status = 'Under Review' THEN 1 ELSE 0 END) as under_review,
-        SUM(CASE WHEN application_status = 'Interview' THEN 1 ELSE 0 END) as interview,
-        SUM(CASE WHEN application_status = 'Offer' THEN 1 ELSE 0 END) as offers,
-        SUM(CASE WHEN application_status = 'Rejected' THEN 1 ELSE 0 END) as rejected,
-        SUM(CASE WHEN application_status = 'Withdrawn' THEN 1 ELSE 0 END) as withdrawn
-      FROM Application
-      WHERE applicant_id = ?`,
-      [applicantId],
+        SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) as pending,
+        SUM(CASE WHEN status = 'under review' THEN 1 ELSE 0 END) as under_review,
+        SUM(CASE WHEN status = 'interview' THEN 1 ELSE 0 END) as interview,
+        SUM(CASE WHEN status = 'offer' THEN 1 ELSE 0 END) as offers,
+        SUM(CASE WHEN status = 'rejected' THEN 1 ELSE 0 END) as rejected,
+        SUM(CASE WHEN status = 'withdrawn' THEN 1 ELSE 0 END) as withdrawn
+      FROM application
+      WHERE user_id = ?`,
+      [user_id],
     )
     return stats[0]
   }
 
-  // Save a job (bookmark/favorite)
-  static async saveJob(applicantId, jobId) {
+  // Save a job
+  static async saveJob(user_id, job_id) {
     try {
-      // Check if already saved
       const [existing] = await pool.query(
-        `SELECT saved_job_id FROM Saved_Jobs 
-         WHERE applicant_id = ? AND job_id = ? 
+        `SELECT saved_job_id FROM saved_jobs 
+         WHERE user_id = ? AND job_id = ? 
          LIMIT 1`,
-        [applicantId, jobId],
+        [user_id, job_id],
       )
 
       if (existing.length > 0) {
@@ -203,31 +200,29 @@ class Application {
       }
 
       const [result] = await pool.query(
-        `INSERT INTO Saved_Jobs (applicant_id, job_id)
+        `INSERT INTO saved_jobs (user_id, job_id)
          VALUES (?, ?)`,
-        [applicantId, jobId],
+        [user_id, job_id],
       )
 
       return {
-        savedJobId: result.insertId,
-        applicantId,
-        jobId,
-        savedDate: new Date(),
+        saved_job_id: result.insertId,
+        user_id,
+        job_id,
+        saved_date: new Date(),
       }
     } catch (error) {
-      if (error.code && error.message) {
-        throw error
-      }
+      if (error.code && error.message) throw error
       throw buildErrObject(500, error.message)
     }
   }
 
   // Unsave a job
-  static async unsaveJob(applicantId, jobId) {
+  static async unsaveJob(user_id, job_id) {
     const [result] = await pool.query(
-      `DELETE FROM Saved_Jobs 
-       WHERE applicant_id = ? AND job_id = ?`,
-      [applicantId, jobId],
+      `DELETE FROM saved_jobs 
+       WHERE user_id = ? AND job_id = ?`,
+      [user_id, job_id],
     )
 
     if (result.affectedRows === 0) {
@@ -238,66 +233,67 @@ class Application {
   }
 
   // Check if job is saved
-  static async isJobSaved(applicantId, jobId) {
+  static async isJobSaved(user_id, job_id) {
     const [rows] = await pool.query(
-      `SELECT saved_job_id FROM Saved_Jobs 
-       WHERE applicant_id = ? AND job_id = ? 
+      `SELECT saved_job_id FROM saved_jobs 
+       WHERE user_id = ? AND job_id = ? 
        LIMIT 1`,
-      [applicantId, jobId],
+      [user_id, job_id],
     )
     return rows.length > 0
   }
 
-  // Get all saved jobs for applicant
-  static async getSavedJobs(applicantId) {
+  // Get all saved jobs for user
+  static async getSavedJobs(user_id) {
     const [rows] = await pool.query(
       `SELECT 
         sj.saved_job_id,
         j.job_id,
         j.title as job_title,
-        j.Position_Type,
-        j.Workplace_Type,
-        j.compensation,
+        j.position_type,
+        j.workplace_type,
+        j.salary_range,
         j.application_deadline,
-        j.posted_date,
-        c.name,
+        j.created_at,
+        c.name as company_name,
         c.industry,
         addr.state,
         addr.city,
-        DATEDIFF(NOW(), j.posted_date) as days_ago
-      FROM Saved_Jobs sj
-      INNER JOIN Job j ON sj.job_id = j.job_id
-      INNER JOIN Company c ON j.company_id = c.company_id
-      LEFT JOIN Address addr ON j.address_id = addr.address_id
-      WHERE sj.applicant_id = ?`,
-      [applicantId],
+        DATEDIFF(NOW(), j.created_at) as days_ago
+      FROM saved_jobs sj
+      INNER JOIN job j ON sj.job_id = j.job_id
+      INNER JOIN company c ON j.company_id = c.company_id
+      LEFT JOIN company_address ca ON c.company_id = ca.company_id
+      LEFT JOIN address addr ON ca.address_id = addr.address_id
+      WHERE sj.user_id = ?`,
+      [user_id],
     )
     return rows
   }
 
-  // Get applications for a specific job (for recruiters/admins)
-  static async getJobApplications(jobId, status = null) {
+  // Get applications for a specific job
+  static async getJobApplications(job_id, status = null) {
     let query = `
       SELECT 
         a.application_id,
-        a.application_status,
+        a.status,
         a.applied_date,
         a.updated_at,
-        ap.applicant_id,
-        ap.first_name,
-        ap.last_name,
-        ap.email,
-        ap.phone_number,
+        ap.user_id,
+        u.first_name,
+        u.last_name,
+        u.email,
+        u.phone_number,
         ap.resume_link
-      FROM Application a
-      INNER JOIN Applicant ap ON a.applicant_id = ap.applicant_id
+      FROM application a
+      INNER JOIN applicant ap ON a.user_id = ap.user_id
+      INNER JOIN user u ON ap.user_id = u.user_id
       WHERE a.job_id = ?
     `
-
-    const params = [jobId]
+    const params = [job_id]
 
     if (status) {
-      query += ' AND a.application_status = ?'
+      query += ' AND a.status = ?'
       params.push(status)
     }
 
@@ -307,8 +303,8 @@ class Application {
     return rows
   }
 
-  // Get recent applications (for dashboard)
-  static async getRecentApplications(applicantId, limit = 5) {
+  // Get recent applications
+  static async getRecentApplications(user_id, limit = 5) {
     const [rows] = await pool.query(
       `SELECT 
         a.application_id,
@@ -316,60 +312,61 @@ class Application {
         a.applied_date,
         j.job_id,
         j.title as job_title,
-        c.name
-      FROM Application a
-      INNER JOIN Job j ON a.job_id = j.job_id
-      INNER JOIN Company c ON j.company_id = c.company_id
-      WHERE a.applicant_id = ?
+        c.name as company_name
+      FROM application a
+      INNER JOIN job j ON a.job_id = j.job_id
+      INNER JOIN company c ON j.company_id = c.company_id
+      WHERE a.user_id = ?
       ORDER BY a.applied_date DESC
       LIMIT ?`,
-      [applicantId, limit],
+      [user_id, limit],
     )
     return rows
   }
 
   // Search applications
-  static async searchApplications(applicantId, searchTerm) {
+  static async searchApplications(user_id, searchTerm) {
     const [rows] = await pool.query(
       `SELECT 
         a.application_id,
-        a.application_status,
+        a.status,
         a.applied_date,
         j.job_id,
         j.title as job_title,
-        j.Position_Type,
-        c.company_name
-      FROM Application a
-      INNER JOIN Job j ON a.job_id = j.job_id
-      INNER JOIN Company c ON j.company_id = c.company_id
-      WHERE a.applicant_id = ? 
-      AND (j.title LIKE ? OR c.company_name LIKE ?)
+        j.position_type,
+        c.name as company_name
+      FROM application a
+      INNER JOIN job j ON a.job_id = j.job_id
+      INNER JOIN company c ON j.company_id = c.company_id
+      WHERE a.user_id = ? 
+      AND (j.title LIKE ? OR c.name LIKE ?)
       ORDER BY a.applied_date DESC`,
-      [applicantId, `%${searchTerm}%`, `%${searchTerm}%`],
+      [user_id, `%${searchTerm}%`, `%${searchTerm}%`],
     )
     return rows
   }
 
-  static async getApplicationCount(applicant_id) {
-    const totalApplications = await pool.query(
-      `SELECT COUNT(*) as application_count from Application a where applicant_id = ?`,
-      [applicant_id],
+  // Get application counts
+  static async getApplicationCount(user_id) {
+    const [totalApplications] = await pool.query(
+      `SELECT COUNT(*) as application_count FROM application WHERE user_id = ?`,
+      [user_id],
     )
 
-    const acceptedApplications = await pool.query(
-      `SELECT COUNT(*) as application_count from Application a where status = "accepted" and applicant_id = ?`,
-      [applicant_id],
+    const [acceptedApplications] = await pool.query(
+      `SELECT COUNT(*) as application_count FROM application WHERE status = 'offer' AND user_id = ?`,
+      [user_id],
     )
 
-    const rejectedApplications = await pool.query(
-      `SELECT COUNT(*) as application_count from Application a where status = "rejected" and applicant_id = ?`,
-      [applicant_id],
+    const [rejectedApplications] = await pool.query(
+      `SELECT COUNT(*) as application_count FROM application WHERE status = 'rejected' AND user_id = ?`,
+      [user_id],
     )
 
     return {
-      totalCount: totalApplications[0][0],
-      acceptedCount: acceptedApplications[0][0],
-      rejectedCount: rejectedApplications[0][0],
+      totalCount: totalApplications[0].application_count,
+      acceptedCount: acceptedApplications[0].application_count,
+      rejectedCount: rejectedApplications[0].application_count,
     }
   }
 }

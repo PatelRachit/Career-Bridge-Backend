@@ -9,13 +9,13 @@ const updateProfile = async (req, res) => {
   try {
     await connection.beginTransaction()
 
-    const applicantId = req.user.applicant_id
+    const applicantId = req.user.user_id
     const {
       first_name,
       last_name,
       email,
       phone_number,
-      resumeLink, // Added resume_link
+      resume_link, // Added resume_link
       skills,
       experience,
       education,
@@ -28,10 +28,12 @@ const updateProfile = async (req, res) => {
     if (last_name) basicUpdates.last_name = last_name
     if (email) basicUpdates.email = email
     if (phone_number) basicUpdates.phone_number = phone_number
-    if (resumeLink !== undefined) basicUpdates.resumeLink = resumeLink // Added resume_link
 
     await Applicant.updateBasicInfo(connection, applicantId, basicUpdates)
 
+    if (resume_link) {
+      await Applicant.updateResumeLink(connection, resume_link, applicantId)
+    }
     // 2. Update Skills (delete all & insert new)
     if (skills && Array.isArray(skills)) {
       await Applicant.deleteAllSkills(connection, applicantId)

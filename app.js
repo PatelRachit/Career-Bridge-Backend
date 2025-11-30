@@ -12,6 +12,7 @@ import { ENVS, NODE_ENV } from './src/constant/index.js'
 import router from './src/routes/index.js'
 import { serverConnectionLog } from './src/utils/serverStartLog.js'
 import { initMySQL } from './src/config/mysql.js'
+import { sendEmail } from './src/utils/sendMail.js'
 
 const app = express()
 

@@ -7,38 +7,42 @@ const getAllJobs = async (req, res) => {
     const {
       page = 1,
       limit = 4,
-      Position_Type,
-      Workplace_Type,
+      position_type,
+      workplace_type,
+      class_level,
       search,
       location,
     } = req.query
 
-    const offset = (parseInt(page) - 1) * parseInt(limit)
+    const currentPage = Math.max(parseInt(page), 1)
+    const perPage = Math.max(parseInt(limit), 1)
+    const offset = (currentPage - 1) * perPage
 
-    const filters = { Position_Type, Workplace_Type, search, location }
-
-    Object.keys(filters).forEach(
-      (key) => filters[key] === undefined && delete filters[key],
-    )
+    const filters = {}
+    if (position_type) filters.position_type = position_type
+    if (workplace_type) filters.workplace_type = workplace_type
+    if (class_level) filters.class_level = class_level
+    if (search) filters.search = search
+    if (location) filters.location = location
 
     const [jobs, total] = await Promise.all([
-      Job.findAll(filters, parseInt(limit), offset),
+      Job.findAll(filters, perPage, offset),
       Job.getCount(filters),
     ])
 
-    const totalPages = Math.ceil(total / parseInt(limit))
+    const totalPages = Math.ceil(total / perPage)
 
     res.status(STATUS_CODE.SUCCESS).json({
       success: true,
       data: {
         jobs,
         pagination: {
-          currentPage: parseInt(page),
+          currentPage,
           totalPages,
           totalJobs: total,
-          limit: parseInt(limit),
-          hasNextPage: parseInt(page) < totalPages,
-          hasPrevPage: parseInt(page) > 1,
+          limit: perPage,
+          hasNextPage: currentPage < totalPages,
+          hasPrevPage: currentPage > 1,
         },
       },
     })

@@ -1,13 +1,15 @@
 import { STATUS_CODE } from '../../constant/index.js'
-import Application from '../../model/applications.js'
+import Recruiter from '../../model/recruiter.js'
 import { handleError } from '../../utils/index.js'
 
-export const getSavedJobs = async (req, res) => {
+export const createJob = async (req, res) => {
   try {
+    const data = req.body
     const { user_id } = req.user
-    const item = await Application.getSavedJobs(user_id)
+    const item = Recruiter.createJob(data, user_id)
     res.status(STATUS_CODE.SUCCESS).json(item)
   } catch (error) {
+    console.log(error)
     handleError(res, error)
   }
 }

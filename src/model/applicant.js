@@ -4,11 +4,10 @@ import { buildErrObject } from '../utils/buildErrObject.js'
 import { ERROR_CODE } from '../constant/errorCode.js'
 
 const { EMAIL_ALREADY_EXISTS } = ERROR_CODE
-
 const SALT_ROUNDS = 10
 
 class Applicant {
-  // Create a new applicant
+  // Create a new applicant (inserts into user + applicant)
   static async create(applicantData) {
     const {
       first_name,
@@ -19,11 +18,10 @@ class Applicant {
       password,
     } = applicantData
 
-    // Hash password
     const hashedPassword = await bcrypt.hash(password, SALT_ROUNDS)
 
-    const [result] = await pool.query(
-      `INSERT INTO User 
+    const [userResult] = await pool.query(
+      `INSERT INTO user 
        (first_name, last_name, date_of_birth, phone_number, email, password)
        VALUES (?, ?, ?, ?, ?, ?)`,
       [
@@ -36,8 +34,15 @@ class Applicant {
       ],
     )
 
+    const user_id = userResult.insertId
+
+    await pool.query(
+      `INSERT INTO applicant (user_id, resume_link) VALUES (?, ?)`,
+      [user_id, applicantData.resume_link || null],
+    )
+
     return {
-      applicantId: result.insertId,
+      user_id,
       first_name,
       last_name,
       date_of_birth,
@@ -46,98 +51,78 @@ class Applicant {
     }
   }
 
+  // Find applicant by email
   static async findByEmail(email) {
     const [rows] = await pool.query(
-      'SELECT * FROM User WHERE email = ? LIMIT 1',
+      `SELECT * FROM user WHERE email = ? LIMIT 1`,
       [email],
     )
 
-    if (rows.length === 0) {
-      return null
-    }
+    if (rows.length === 0) return null
 
-    const applicant = rows[0]
+    const user = rows[0]
 
-    // Get all skills for this applicant
     const [skillRows] = await pool.query(
-      `SELECT s.Skill_ID, s.name 
-    FROM Skills s
-    INNER JOIN Applicant_Skills aps ON s.Skill_ID = aps.Skill_ID
-    WHERE aps.applicant_id = ?`,
-      [applicant.applicant_id],
+      `SELECT skill_name FROM applicant_skills WHERE user_id = ?`,
+      [user.user_id],
     )
 
-    // Return applicant with skills
     return {
-      ...applicant,
-      skills: skillRows?.map((skill) => skill.name) || [],
+      ...user,
+      skills: skillRows.map((s) => s.skill_name),
     }
   }
-  static async findById(applicantId) {
+
+  // Find applicant by ID
+  static async findById(user_id) {
     const [applicantRows] = await pool.query(
-      `SELECT * FROM User WHERE User_ID = ? LIMIT 1`,
-      [applicantId],
+      `SELECT * FROM user u JOIN applicant a ON a.user_id = u.user_id WHERE u.user_id = ? LIMIT 1`,
+      [user_id],
     )
 
-    if (applicantRows.length === 0) {
-      return null
-    }
+    if (applicantRows.length === 0) return null
 
-    const applicant = applicantRows[0]
+    const user = applicantRows[0]
 
-    // Get all experience records
     const [experienceRows] = await pool.query(
-      `SELECT * FROM Experience WHERE applicant_id = ? ORDER BY start_date DESC`,
-      [applicantId],
+      `SELECT * FROM experience WHERE user_id = ? ORDER BY start_date DESC`,
+      [user_id],
     )
 
-    // Get all education records
     const [educationRows] = await pool.query(
-      `SELECT * FROM Education WHERE applicant_id = ? ORDER BY start_date DESC`,
-      [applicantId],
+      `SELECT * FROM education WHERE user_id = ? ORDER BY start_date DESC`,
+      [user_id],
     )
 
-    // Get all skills
     const [skillRows] = await pool.query(
-      `SELECT s.* FROM Skills s
-     INNER JOIN Applicant_Skills as2 ON s.Skill_ID = as2.Skill_ID
-     WHERE as2.applicant_id = ?`,
-      [applicantId],
+      `SELECT skill_name FROM applicant_skills WHERE user_id = ?`,
+      [user_id],
     )
 
-    // Combine all data
     return {
-      ...applicant,
-      experience: experienceRows || [],
-      education: educationRows || [],
-      skills: skillRows.map((skill) => skill.name) || [],
+      ...user,
+      experience: experienceRows,
+      education: educationRows,
+      skills: skillRows.map((s) => s.skill_name),
     }
   }
 
+  // Check if email exists
   static async emailExists(email) {
-    try {
-      const [rows] = await pool.query(
-        'SELECT User_id FROM User WHERE email = ? LIMIT 1',
-        [email],
-      )
+    const [rows] = await pool.query(
+      `SELECT user_id FROM user WHERE email = ? LIMIT 1`,
+      [email],
+    )
 
-      if (rows.length > 0) {
-        throw buildErrObject(422, EMAIL_ALREADY_EXISTS)
-      }
-      return false
-    } catch (error) {
-      if (error.code && error.message) {
-        throw error
-      }
-      throw buildErrObject(422, error.message)
+    if (rows.length > 0) {
+      throw buildErrObject(422, EMAIL_ALREADY_EXISTS)
     }
+    return false
   }
 
-  // Update basic applicant info
-  static async updateBasicInfo(connection, applicantId, updates) {
-    if (Object.keys(updates).length === 0) {
-      return true
-    }
+  // Update basic applicant info (in applicant table)
+  static async updateBasicInfo(connection, user_id, updates) {
+    if (Object.keys(updates).length === 0) return true
 
     const fields = Object.keys(updates)
       .map((key) => `${key} = ?`)
@@ -145,160 +130,165 @@ class Applicant {
     const values = Object.values(updates)
 
     const [result] = await connection.query(
-      `UPDATE Applicant SET ${fields} WHERE applicant_id = ?`,
-      [...values, applicantId],
+      `UPDATE user SET ${fields} WHERE user_id = ?`,
+      [...values, user_id],
     )
 
     return result.affectedRows > 0
   }
 
-  // Skills Management
-  static async deleteAllSkills(connection, applicantId) {
-    await connection.query(
-      `DELETE FROM Applicant_Skills WHERE applicant_id = ?`,
-      [applicantId],
+  static async updateResumeLink(connection, link, user) {
+    const [result] = await connection.query(
+      `UPDATE applicant SET resume_link = ? WHERE user_id = ?`,
+      [link, user],
     )
+    return result
   }
 
-  static async findOrCreateSkill(connection, skillName) {
-    let [skillRows] = await connection.query(
-      `SELECT Skill_ID FROM Skills WHERE name = ?`,
-      [skillName],
-    )
+  // SKILLS MANAGEMENT
 
-    if (skillRows.length === 0) {
-      const [result] = await connection.query(
-        `INSERT INTO Skills (name) VALUES (?)`,
-        [skillName],
-      )
-      return result.insertId
-    }
-
-    return skillRows[0].Skill_ID
-  }
-
-  static async addSkillToApplicant(connection, applicantId, skillId) {
-    await connection.query(
-      `INSERT INTO Applicant_Skills (applicant_id, Skill_ID) VALUES (?, ?)`,
-      [applicantId, skillId],
-    )
-  }
-
-  // Experience - Insert or Update
-  static async deleteAllExperience(connection, applicantId) {
-    await connection.query(`DELETE FROM Experience WHERE applicant_id = ?`, [
-      applicantId,
+  static async deleteAllSkills(connection, user_id) {
+    await connection.query(`DELETE FROM applicant_skills WHERE user_id = ?`, [
+      user_id,
     ])
   }
 
-  static async createExperience(connection, applicantId, experienceData) {
+  static async findOrCreateSkill(connection, skillName) {
+    let [rows] = await connection.query(
+      `SELECT name FROM skills WHERE name = ?`,
+      [skillName],
+    )
+
+    if (rows.length === 0) {
+      await connection.query(`INSERT INTO skills (name) VALUES (?)`, [
+        skillName,
+      ])
+      return skillName
+    }
+
+    return rows[0].name
+  }
+
+  static async addSkillToApplicant(connection, user_id, skillName) {
+    await connection.query(
+      `INSERT INTO applicant_skills (user_id, skill_name) VALUES (?, ?)`,
+      [user_id, skillName],
+    )
+  }
+
+  // EXPERIENCE MANAGEMENT
+
+  static async deleteAllExperience(connection, user_id) {
+    await connection.query(`DELETE FROM experience WHERE user_id = ?`, [
+      user_id,
+    ])
+  }
+
+  static async createExperience(connection, user_id, exp) {
     const {
       company,
       designation,
-      current,
       role_description,
       start_date,
       end_date,
-    } = experienceData
+      current,
+    } = exp
 
     await connection.query(
-      `INSERT INTO Experience 
-    (applicant_id, company, designation, current, role_description, start_date, end_date) 
-    VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO experience 
+      (user_id, company, designation, role_description, start_date, end_date, current)
+      VALUES (?, ?, ?, ?, ?, ?, ?)`,
       [
-        applicantId,
+        user_id,
         company,
         designation,
+        role_description,
+        start_date,
+        current ? null : end_date,
         current || false,
-        role_description || null,
-        start_date || null,
-        current ? null : end_date || null,
       ],
     )
   }
 
-  // Education Management - Replace All
-  static async deleteAllEducation(connection, applicantId) {
-    await connection.query(`DELETE FROM Education WHERE applicant_id = ?`, [
-      applicantId,
-    ])
+  // EDUCATION MANAGEMENT
+
+  static async deleteAllEducation(connection, user_id) {
+    await connection.query(`DELETE FROM education WHERE user_id = ?`, [user_id])
   }
 
-  static async createEducation(connection, applicantId, educationData) {
-    const {
-      school,
-      degree,
-      gpa,
-      field_of_study,
-      start_date,
-      end_date,
-      list_item,
-    } = educationData
+  static async createEducation(connection, user_id, edu) {
+    const { school, degree, gpa, field_of_study, start_date, end_date } = edu
 
     await connection.query(
-      `INSERT INTO Education 
-    (applicant_id, school, degree, gpa, field_of_study, start_date, end_date, list_item) 
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO education 
+      (user_id, school, degree, gpa, field_of_study, start_date, end_date)
+      VALUES (?, ?, ?, ?, ?, ?, ?)`,
       [
-        applicantId,
+        user_id,
         school,
         degree,
         gpa || null,
         field_of_study || null,
         start_date || null,
         end_date || null,
-        list_item || null,
       ],
     )
   }
+
   // Delete applicant
-  static async delete(applicantId) {
+  static async delete(user_id) {
     const [result] = await pool.query(
-      'DELETE FROM Applicant WHERE applicant_id = ?',
-      [applicantId],
+      `DELETE FROM applicant WHERE user_id = ?`,
+      [user_id],
     )
     return result.affectedRows > 0
   }
 
-  // Compare password (for login)
-  static async comparePassword(plainPassword, hashedPassword) {
-    return await bcrypt.compare(plainPassword, hashedPassword)
+  // Compare password
+  static async comparePassword(plain, hashed) {
+    return bcrypt.compare(plain, hashed)
   }
 
-  // Get all applicants (with pagination)
+  // Find all applicants
   static async findAll(limit = 10, offset = 0) {
     const [rows] = await pool.query(
-      `SELECT applicant_id, first_name, last_name, date_of_birth, 
-              phone_number, email, sex, resume_link, created_at 
-       FROM Applicant 
+      `SELECT u.user_id, u.first_name, u.last_name, u.date_of_birth, 
+              u.phone_number, u.email, a.resume_link
+       FROM user u
+       INNER JOIN applicant a ON u.user_id = a.user_id
        LIMIT ? OFFSET ?`,
       [limit, offset],
     )
+
     return rows
   }
 
-  // Search applicants by name
+  // Search applicants
   static async searchByName(searchTerm, limit = 10) {
     const [rows] = await pool.query(
-      `SELECT applicant_id, first_name, last_name, email, phone_number, resume_link
-       FROM Applicant 
-       WHERE first_name LIKE ? OR last_name LIKE ?
+      `SELECT u.user_id, u.first_name, u.last_name, u.email, u.phone_number, a.resume_link
+       FROM user u
+       INNER JOIN applicant a ON u.user_id = a.user_id
+       WHERE u.first_name LIKE ? OR u.last_name LIKE ?
        LIMIT ?`,
       [`%${searchTerm}%`, `%${searchTerm}%`, limit],
     )
+
     return rows
   }
 
-  // Get applicant profile (without password)
-  static async getProfile(applicantId) {
+  // Get profile (joined view)
+  static async getProfile(user_id) {
     const [rows] = await pool.query(
-      `SELECT applicant_id, first_name, last_name, date_of_birth, 
-              phone_number, email, sex, resume_link, created_at, updated_at
-       FROM Applicant 
-       WHERE applicant_id = ? 
+      `SELECT u.user_id, u.first_name, u.last_name, u.date_of_birth,
+              u.phone_number, u.email, a.resume_link
+       FROM user u
+       INNER JOIN applicant a ON u.user_id = a.user_id
+       WHERE u.user_id = ?
        LIMIT 1`,
-      [applicantId],
+      [user_id],
     )
+
     return rows[0] || null
   }
 }

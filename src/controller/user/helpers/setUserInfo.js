@@ -1,7 +1,7 @@
 export const setUserInfo = (req = {}) =>
   new Promise((resolve) => {
     let user = {
-      applicant_id: req.applicant_id,
+      user_id: req.user_id,
       firstName: req.firstName,
       email: req.email,
     }

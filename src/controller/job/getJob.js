@@ -17,8 +17,8 @@ const getJob = async (req, res) => {
     if (token) {
       let email = await getUserIdFromToken(token)
       const user = await Applicant.findByEmail(email)
-      if (user && user.applicant_id) {
-        const applicantId = user.applicant_id
+      if (user && user.user_id) {
+        const applicantId = user.user_id
 
         // Check if user has applied for this job
         hasApplied = await Application.hasApplied(applicantId, id)

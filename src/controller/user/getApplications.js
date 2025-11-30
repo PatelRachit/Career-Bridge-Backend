@@ -4,8 +4,8 @@ import { handleError } from '../../utils/index.js'
 
 export const getApplications = async (req, res) => {
   try {
-    const applicant_id = req.user.applicant_id
-    const item = await Application.getApplicantApplications(applicant_id)
+    const user_id = req.user.user_id
+    const item = await Application.getUserApplications(user_id)
     res.status(STATUS_CODE.SUCCESS).json(item)
   } catch (error) {
     handleError(res, error)

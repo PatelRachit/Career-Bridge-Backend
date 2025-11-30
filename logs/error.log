@@ -208,3 +208,7 @@ Stack: Error: listen EADDRINUSE: address already in use :::5000
     at Server.listen (node:net:2102:7)
     at AppServer (file:///C:/Users/jpatel/Desktop/career-bridge/backend/app.js:98:12)
     at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+30-11-2025 12:47:00 [error]: Failed to create job
+30-11-2025 12:48:02 [error]: Failed to create job
+30-11-2025 12:48:28 [error]: Failed to create job
+30-11-2025 12:49:12 [error]: Failed to create job
