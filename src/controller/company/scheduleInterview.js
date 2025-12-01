@@ -10,7 +10,7 @@ export const scheduleInterview = async (req, res) => {
 
     await Recruiter.scheduleInterview(job_id, applicant_id)
 
-    const item = await Recruiter.getApplicantsByJob(job_id)
+    const item = await Recruiter.getApplicantsByJob(job_id, 'pending')
 
     const user = await Recruiter.getApplicantById(applicant_id)
 

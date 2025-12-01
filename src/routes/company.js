@@ -12,7 +12,7 @@ import { getWorkplaceTypes } from '../controller/company/lookups/getWorkplaceTyp
 import { getSkills } from '../controller/company/lookups/getSkills.js'
 import { createJob } from '../controller/company/createJob.js'
 import { scheduleInterview } from '../controller/company/scheduleInterview.js'
-
+import { getInterviewApplicants } from '../controller/company/getInterviewApplicants.js'
 const router = express.Router()
 
 const requireAuth = passport.authenticate('jwt', {
@@ -24,6 +24,13 @@ router.post('/', trimRequest.all, createCompany)
 router.get('/jobs', requireAuth, trimRequest.all, getJobsByCompany)
 
 router.get('/applicants/:id', requireAuth, trimRequest.all, getApplicantsByJob)
+
+router.get(
+  '/interviews/:id',
+  requireAuth,
+  trimRequest.all,
+  getInterviewApplicants,
+)
 
 router.get(
   '/applicants/profile/:id',

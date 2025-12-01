@@ -6,7 +6,7 @@ const getAllJobs = async (req, res) => {
   try {
     const {
       page = 1,
-      limit = 4,
+      limit = 10,
       position_type,
       workplace_type,
       class_level,

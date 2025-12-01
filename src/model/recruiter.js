@@ -389,7 +389,7 @@ class Recruiter {
     return rows
   }
 
-  static async getApplicantsByJob(job_id) {
+  static async getApplicantsByJob(job_id, status) {
     const [jobRows] = await pool.query(
       `SELECT 
         j.title,
@@ -431,9 +431,9 @@ class Recruiter {
        INNER JOIN user u ON u.user_id = app.user_id
        LEFT JOIN applicant a ON a.user_id = u.user_id
        LEFT JOIN applicant_skills s ON s.user_id = u.user_id
-       WHERE app.job_id = ? AND app.status = "pending"
+       WHERE app.job_id = ? AND app.status = ?
        GROUP BY u.user_id, a.resume_link, app.application_id, app.status, app.applied_date`,
-      [job_id],
+      [job_id, status],
     )
     const applicants = applicantRows.map((row) => ({
       ...row,
