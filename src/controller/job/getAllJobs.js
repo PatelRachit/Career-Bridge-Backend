@@ -26,9 +26,11 @@ const getAllJobs = async (req, res) => {
     if (location) filters.location = location
 
     const [jobs, total] = await Promise.all([
-      Job.findAll(filters, perPage, offset),
+      Job.findAllJobs(filters, perPage, offset),
       Job.getCount(filters),
     ])
+
+    console.log('Total jobs found:', total)
 
     const totalPages = Math.ceil(total / perPage)
 

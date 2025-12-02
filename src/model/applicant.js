@@ -16,14 +16,13 @@ class Applicant {
       phone_number,
       email,
       password,
+      resume_link,
     } = applicantData
 
     const hashedPassword = await bcrypt.hash(password, SALT_ROUNDS)
 
-    const [userResult] = await pool.query(
-      `INSERT INTO user 
-       (first_name, last_name, date_of_birth, phone_number, email, password)
-       VALUES (?, ?, ?, ?, ?, ?)`,
+    const [resultSets] = await pool.query(
+      `CALL CreateApplicant(?, ?, ?, ?, ?, ?, ?)`,
       [
         first_name,
         last_name,
@@ -31,76 +30,46 @@ class Applicant {
         phone_number,
         email,
         hashedPassword,
+        resume_link || null,
       ],
     )
 
-    const user_id = userResult.insertId
+    // First result set returned from SELECT in procedure
+    const user = resultSets[0]
 
-    await pool.query(
-      `INSERT INTO applicant (user_id, resume_link) VALUES (?, ?)`,
-      [user_id, applicantData.resume_link || null],
-    )
-
-    return {
-      user_id,
-      first_name,
-      last_name,
-      date_of_birth,
-      phone_number,
-      email,
-    }
+    return user
   }
 
-  // Find applicant by email
   static async findByEmail(email) {
-    const [rows] = await pool.query(
-      `SELECT * FROM user WHERE email = ? LIMIT 1`,
-      [email],
-    )
+    const [resultSets] = await pool.query(`CALL FindApplicantByEmail(?)`, [
+      email,
+    ])
 
-    if (rows.length === 0) return null
+    const userRows = resultSets[0]
+    const skillRows = resultSets[1]
 
-    const user = rows[0]
-
-    const [skillRows] = await pool.query(
-      `SELECT skill_name FROM applicant_skills WHERE user_id = ?`,
-      [user.user_id],
-    )
+    if (!userRows || userRows.length === 0) return null
 
     return {
-      ...user,
-      skills: skillRows.map((s) => s.skill_name),
+      ...userRows[0],
+      skills: skillRows ? skillRows.map((row) => row.skill_name) : [],
     }
   }
 
   // Find applicant by ID
   static async findById(user_id) {
-    const [applicantRows] = await pool.query(
-      `SELECT * FROM user u JOIN applicant a ON a.user_id = u.user_id WHERE u.user_id = ? LIMIT 1`,
-      [user_id],
-    )
+    const [resultSets] = await pool.query(`CALL GetApplicantById(?)`, [user_id])
 
-    if (applicantRows.length === 0) return null
+    const userRow = resultSets[0][0]
 
-    const user = applicantRows[0]
+    if (!userRow) return null
 
-    const [experienceRows] = await pool.query(
-      `SELECT * FROM experience WHERE user_id = ? ORDER BY start_date DESC`,
-      [user_id],
-    )
-
-    const [educationRows] = await pool.query(
-      `SELECT * FROM education WHERE user_id = ? ORDER BY start_date DESC`,
-      [user_id],
-    )
-
-    const [skillRows] = await pool.query(
-      `SELECT skill_name FROM applicant_skills WHERE user_id = ?`,
-      [user_id],
-    )
+    const experienceRows = resultSets[1]
+    const educationRows = resultSets[2]
+    const skillRows = resultSets[3]
 
     return {
-      ...user,
+      ...userRow,
       experience: experienceRows,
       education: educationRows,
       skills: skillRows.map((s) => s.skill_name),
@@ -235,61 +204,9 @@ class Applicant {
     )
   }
 
-  // Delete applicant
-  static async delete(user_id) {
-    const [result] = await pool.query(
-      `DELETE FROM applicant WHERE user_id = ?`,
-      [user_id],
-    )
-    return result.affectedRows > 0
-  }
-
   // Compare password
   static async comparePassword(plain, hashed) {
     return bcrypt.compare(plain, hashed)
-  }
-
-  // Find all applicants
-  static async findAll(limit = 10, offset = 0) {
-    const [rows] = await pool.query(
-      `SELECT u.user_id, u.first_name, u.last_name, u.date_of_birth, 
-              u.phone_number, u.email, a.resume_link
-       FROM user u
-       INNER JOIN applicant a ON u.user_id = a.user_id
-       LIMIT ? OFFSET ?`,
-      [limit, offset],
-    )
-
-    return rows
-  }
-
-  // Search applicants
-  static async searchByName(searchTerm, limit = 10) {
-    const [rows] = await pool.query(
-      `SELECT u.user_id, u.first_name, u.last_name, u.email, u.phone_number, a.resume_link
-       FROM user u
-       INNER JOIN applicant a ON u.user_id = a.user_id
-       WHERE u.first_name LIKE ? OR u.last_name LIKE ?
-       LIMIT ?`,
-      [`%${searchTerm}%`, `%${searchTerm}%`, limit],
-    )
-
-    return rows
-  }
-
-  // Get profile (joined view)
-  static async getProfile(user_id) {
-    const [rows] = await pool.query(
-      `SELECT u.user_id, u.first_name, u.last_name, u.date_of_birth,
-              u.phone_number, u.email, a.resume_link
-       FROM user u
-       INNER JOIN applicant a ON u.user_id = a.user_id
-       WHERE u.user_id = ?
-       LIMIT 1`,
-      [user_id],
-    )
-
-    return rows[0] || null
   }
 }
 

@@ -14,6 +14,8 @@ const getJob = async (req, res) => {
     const { id } = req.params
     const job = await Job.findById(id)
 
+    console.log('Job:', job)
+
     if (token) {
       let email = await getUserIdFromToken(token)
       const user = await Applicant.findByEmail(email)

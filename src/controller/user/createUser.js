@@ -10,8 +10,8 @@ const createUser = async (req, res) => {
 
     if (!doesEmailExists) {
       const item = await Applicant.create(req.body)
-      const userInfo = await setUserInfo(item)
-      const response = await returnRegisterToken(item, userInfo)
+      const userInfo = await setUserInfo(item[0])
+      const response = await returnRegisterToken(item[0], userInfo)
       res
         .cookie('authToken', response.token, {
           httpOnly: true,

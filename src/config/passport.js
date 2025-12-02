@@ -24,7 +24,6 @@ const jwtOptions = {
 const jwtLogin = new JwtStrategy(jwtOptions, async (payload, done) => {
   try {
     const user = await Applicant.findByEmail(payload.data.email)
-
     if (!user) {
       return done(null, false)
     }
