@@ -50,6 +50,9 @@ class Recruiter {
       if (err.sqlState === '45000') {
         throw buildErrObject(400, err.message)
       }
+      if (err.code === 'ER_DUP_ENTRY') {
+        throw buildErrObject(409, 'PHONE_ALREADY_EXISTS')
+      }
       throw buildErrObject(500, err.message)
     }
   }

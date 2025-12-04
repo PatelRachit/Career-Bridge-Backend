@@ -5,9 +5,9 @@ import { handleError } from '../../utils/index.js'
 export const createCompany = async (req, res) => {
   try {
     const item = await Company.createCompany(req.body)
+    console.log(item)
     res.status(STATUS_CODE.SUCCESS).json(item)
   } catch (error) {
-    console.log(error)
     handleError(res, error)
   }
 }

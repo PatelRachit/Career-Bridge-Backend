@@ -3,6 +3,7 @@ import { handleError } from '../../utils/handleError.js'
 import Applicant from '../../model/Applicant.js'
 import { returnRegisterToken } from './helpers/returnRegisterToken.js'
 import { setUserInfo } from './helpers/setUserInfo.js'
+import { buildErrObject } from '../../utils/buildErrObject.js'
 
 const createUser = async (req, res) => {
   try {
@@ -22,6 +23,13 @@ const createUser = async (req, res) => {
         .json(response)
     }
   } catch (error) {
+    if (error.code === 'ER_DUP_ENTRY') {
+      res.status(409).json({
+        errors: {
+          msg: 'PHONE_ALREADY_EXISTS',
+        },
+      })
+    }
     handleError(res, error)
   }
 }
